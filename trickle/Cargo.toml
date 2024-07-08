@@ -1,0 +1,14 @@
+[package]
+name = "trickle"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "trickle"
+path = "src/lib.rs"
+
+[[bin]]
+name = "trickled"
+path = "src/main.rs"
+
+[dependencies]
