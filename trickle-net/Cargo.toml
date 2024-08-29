@@ -1,0 +1,10 @@
+[package]
+name = "trickle-net"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+trickle-crypto = { path = "../trickle-crypto" }
+
+quinn = "0.11.3"
+quinn-proto = "0.11.6"

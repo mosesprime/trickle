@@ -12,3 +12,7 @@ name = "trickled"
 path = "src/main.rs"
 
 [dependencies]
+trickle-crypto = { path = "../trickle-crypto" }
+trickle-net = { path = "../trickle-net" }
+
+tracing = "0.1.40"
