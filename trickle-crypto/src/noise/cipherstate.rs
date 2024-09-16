@@ -1,10 +1,8 @@
 use zeroize::ZeroizeOnDrop;
 
-use crate::cipher::CipherError;
+use super::{aead::CipherError, NoiseCipher, CIPHER_KEY_LEN};
 
-use super::{NoiseCipher, CIPHER_KEY_LEN};
-
-/// Reference: http://noiseprotocol.org/noise.html#the-cipherstate-object
+/// Reference: <https://noiseprotocol.org/noise.html#the-cipherstate-object>
 #[derive(ZeroizeOnDrop)]
 pub(crate) struct CipherState {
     nonce: u64,
@@ -13,16 +11,16 @@ pub(crate) struct CipherState {
 }
 
 impl CipherState {
-    pub fn new(cipher: Box<dyn NoiseCipher>) -> Self {
+    pub(crate) fn new(cipher: Box<dyn NoiseCipher>) -> Self {
         Self { nonce: 0, cipher, has_key: false }
     }
 
-    pub fn set_key(&mut self, key: &[u8; CIPHER_KEY_LEN]) {
+    pub(crate) fn set_key(&mut self, key: &[u8; CIPHER_KEY_LEN]) {
         self.cipher.set_key(key);
         self.has_key = true;
     }
 
-    pub fn encrypt(&mut self, associated_data: Option<&[u8]>, plaintext: &[u8], out: &mut [u8]) -> Result<usize, CipherError> {
+    pub(crate) fn encrypt(&mut self, associated_data: Option<&[u8]>, plaintext: &[u8], out: &mut [u8]) -> Result<usize, CipherError> {
         if !self.has_key {
             return Err(CipherError::MissingKeyMaterial);
         }
@@ -34,7 +32,7 @@ impl CipherState {
         Ok(len)
     }
 
-    pub fn decrypt(&mut self, associated_data: Option<&[u8]>, ciphertext: &[u8], out: &mut [u8]) -> Result<usize, CipherError> {
+    pub(crate) fn decrypt(&mut self, associated_data: Option<&[u8]>, ciphertext: &[u8], out: &mut [u8]) -> Result<usize, CipherError> {
         if !self.has_key {
             return Err(CipherError::MissingKeyMaterial);
         }

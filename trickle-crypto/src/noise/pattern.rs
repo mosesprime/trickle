@@ -1,12 +1,20 @@
 use std::{fmt::Display, str::FromStr};
 
+/// A parsed Noise protocol name string. (ex. `Noise_XX_25519_ChaChaPoly_BLAKE2s`)
 pub struct NoiseParams {
+    /// Original protocol name.
+    pub name: Box<str>,
+    /// Base protocol name. (typically `Noise`)
     pub base: BaseChoice,
+    /// Prefered handshake pattern with modifiers. (ex. `XXpsk`)
     pub handshake: HandshakeChoice,
+    /// Type of Diffi-Hellman used. (ex. `25519` would use eliptic curve 25519)
     pub diff_hell: DiffHellChoice,
     #[cfg(feature = "hfs")]
     pub kem: Option<KemChoice>,
+    /// Type of AEAD cipher used. (ex. `ChaChaPoly` for ChaCha20Poly1305)
     pub cipher: CipherChoice,
+    /// Type of hash function used. (ex. `BLAKE2s`)
     pub hash: HashChoice,
 }
 
@@ -17,6 +25,7 @@ impl FromStr for NoiseParams {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut parts = s.split('_').peekable();
         let params = NoiseParams {
+            name: s.into(),
             base: parts.next().ok_or(PatternError::TooFewParameters)?.parse()?,
             handshake: parts.next().ok_or(PatternError::TooFewParameters)?.parse()?,
             diff_hell: parts
@@ -46,6 +55,7 @@ impl FromStr for NoiseParams {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut parts = s.split('_');
         let params = NoiseParams {
+            name: s.into(),
             base: parts.next().ok_or(PatternError::TooFewParameters)?.parse()?,
             handshake:  parts.next().ok_or(PatternError::TooFewParameters)?.parse()?,
             diff_hell: parts.next().ok_or(PatternError::TooFewParameters)?.parse()?,
@@ -82,8 +92,17 @@ pub struct HandshakeChoice {
 }
 
 impl HandshakeChoice {
-    fn contains(&self, modifier: &HandshakeModifier) -> bool {
+    pub(crate) fn contains(&self, modifier: &HandshakeModifier) -> bool {
         self.modifiers.contains(modifier)
+    }
+
+    pub(crate) fn has_psk(&self) -> bool {
+        for modifier in &self.modifiers {
+            if let HandshakeModifier::PSK(_) = *modifier {
+                return true;
+            }
+        }
+        false
     }
 
     fn parse(s: &str) -> Result<(HandshakePattern, &str), PatternError> {
@@ -206,8 +225,8 @@ impl FromStr for HashChoice {
 }
 
 /// Reference: https://noiseprotocol.org/noise.html#handshake-patterns
-#[derive(Debug, PartialEq)]
-enum MessageToken {
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum MessageToken {
     E,
     S,
     EE,
@@ -298,16 +317,32 @@ fn parse_message_token_pattern() {
     }, MessagePattern::new(None, None, &[&[E, S], &[SE], &[ES], &[EE]]));
 }
 
-#[derive(Debug, PartialEq)]
-pub struct MessagePattern<'a> {
-    premessage_initiator: Option<&'a [MessageToken]>,
-    premessage_recipient: Option<&'a [MessageToken]>,
-    message: &'a [&'a [MessageToken]],
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct MessagePattern<'a> {
+    pub premessage_initiator: Option<&'a [MessageToken]>,
+    pub premessage_recipient: Option<&'a [MessageToken]>,
+    pub message: &'a [&'a [MessageToken]],
 }
 
 impl<'a> MessagePattern<'a> {
     fn new(premessage_initiator: Option<&'a[MessageToken]>, premessage_recipient: Option<&'a[MessageToken]>, message: &'a [&'a [MessageToken]]) -> Self {
         Self { premessage_initiator, premessage_recipient, message }
+    }
+}
+
+impl<'a> Into<Vec<Vec<MessageToken>>> for MessagePattern<'a> {
+    fn into(self) -> Vec<Vec<MessageToken>> {
+        let mut res = vec![];
+        if let Some(msgs) = self.premessage_initiator {
+            res.push(msgs.to_vec());
+        }
+        if let Some(msgs) = self.premessage_recipient {
+            res.push(msgs.to_vec());
+        }
+        for group in self.message {
+            res.push(group.to_vec());
+        }
+        res
     }
 }
 
@@ -608,7 +643,7 @@ define_pattern!{
 }
 
 impl HandshakePattern {
-    /// Reference: https://noiseprotocol.org/noise.html#one-way-handshake-patterns
+    /// Reference: <https://noiseprotocol.org/noise.html#one-way-handshake-patterns>
     pub(crate) fn is_one_way(self) -> bool {
         use HandshakePattern::*;
         matches!(self, N | X | K)
@@ -633,7 +668,7 @@ impl HandshakePattern {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Role {
     Initiator,
     Recipient,
